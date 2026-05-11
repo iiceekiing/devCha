@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Multi-User Chat Platform</title>
+    <title>devCha</title>
     <link href="./src/output.css" rel="stylesheet">
     <style>
         .chat-messages {
@@ -97,11 +97,25 @@
                 <div class="flex items-center space-x-3">
                     <h1 class="text-xl font-bold text-gray-800">Chat Room</h1>
                     <span class="text-sm text-gray-600">Welcome, <span id="currentUser" class="font-medium"></span></span>
+                    <span class="text-sm text-blue-600 font-medium">(<span id="membersCount">0</span> members)</span>
                 </div>
-                <button onclick="logout()" 
-                        class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition duration-200 font-medium text-sm">
-                    Logout
-                </button>
+                <div class="flex items-center space-x-2">
+                    <button onclick="toggleMembersList()" 
+                            class="bg-blue-600 text-white px-3 py-2 rounded-md hover:bg-blue-700 transition duration-200 font-medium text-sm">
+                        Members
+                    </button>
+                    <button onclick="logout()" 
+                            class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition duration-200 font-medium text-sm">
+                        Logout
+                    </button>
+                </div>
+            </div>
+            <!-- Members List -->
+            <div id="membersList" class="hidden border-t border-gray-200 px-4 py-3 bg-gray-50">
+                <h3 class="text-sm font-semibold text-gray-700 mb-2">All Members:</h3>
+                <div id="membersContainer" class="flex flex-wrap gap-2">
+                    <!-- Members will be added here -->
+                </div>
             </div>
         </header>
 
@@ -173,6 +187,9 @@
             
             const currentUser = JSON.parse(localStorage.getItem(CURRENT_USER_KEY));
             document.getElementById('currentUser').textContent = currentUser.username;
+            
+            updateMembersCount();
+            loadMembersList();
         }
 
         function handleRegister(e) {
@@ -350,8 +367,16 @@
                 });
                 
                 messageContent.innerHTML = `
-                    <div class="font-medium text-sm ${isCurrentUser ? 'text-blue-100' : 'text-gray-600'}">
-                        ${message.username}:
+                    <div class="flex justify-between items-start">
+                        <div class="font-medium text-sm ${isCurrentUser ? 'text-blue-100' : 'text-gray-600'}">
+                            ${message.username}:
+                        </div>
+                        ${isCurrentUser ? `
+                            <button onclick="deleteMessage(${message.id})" 
+                                    class="bg-red-600 hover:bg-red-700 text-white text-xs ml-2 px-2 py-1 rounded">
+                                delete
+                            </button>
+                        ` : ''}
                     </div>
                     <div class="mt-1">${message.message}</div>
                     <div class="text-xs ${isCurrentUser ? 'text-blue-200' : 'text-gray-500'} mt-1">
@@ -363,6 +388,68 @@
             }
             
             document.getElementById('chatMessages').appendChild(messageDiv);
+        }
+
+        function deleteMessage(messageId) {
+            const currentUser = JSON.parse(localStorage.getItem(CURRENT_USER_KEY));
+            
+            // Get all messages
+            const messages = JSON.parse(localStorage.getItem(MESSAGES_KEY) || '[]');
+            
+            // Find the message to delete
+            const messageToDelete = messages.find(msg => msg.id === messageId);
+            
+            // Security check: only allow deletion of own messages
+            if (!messageToDelete || messageToDelete.username !== currentUser.username) {
+                console.error('Unauthorized: Cannot delete other users messages');
+                return;
+            }
+            
+            // Remove the message
+            const updatedMessages = messages.filter(msg => msg.id !== messageId);
+            
+            // Save updated messages
+            localStorage.setItem(MESSAGES_KEY, JSON.stringify(updatedMessages));
+            
+            // Reload messages to refresh the display
+            loadMessages();
+        }
+
+        function updateMembersCount() {
+            const users = JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
+            document.getElementById('membersCount').textContent = users.length;
+        }
+
+        function loadMembersList() {
+            const users = JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
+            const currentUser = JSON.parse(localStorage.getItem(CURRENT_USER_KEY));
+            const membersContainer = document.getElementById('membersContainer');
+            
+            membersContainer.innerHTML = '';
+            
+            users.forEach(user => {
+                const memberDiv = document.createElement('div');
+                const isCurrentUser = user.username === currentUser.username;
+                
+                memberDiv.className = `px-3 py-1 rounded-full text-sm font-medium ${
+                    isCurrentUser 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-gray-200 text-gray-700'
+                }`;
+                
+                memberDiv.textContent = `${user.fullName} (@${user.username})`;
+                membersContainer.appendChild(memberDiv);
+            });
+        }
+
+        function toggleMembersList() {
+            const membersList = document.getElementById('membersList');
+            membersList.classList.toggle('hidden');
+            
+            // Update members list when showing
+            if (!membersList.classList.contains('hidden')) {
+                loadMembersList();
+            }
         }
 
         function scrollToBottom() {
