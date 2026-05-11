@@ -305,6 +305,15 @@
                 <audio id="voiceAudio" controls class="mt-2 w-full"></audio>
             </div>
             
+            <!-- Video Recording Preview -->
+            <div id="videoPreview" class="hidden mb-2 sm:mb-3 p-2 sm:p-3 bg-gray-50 rounded-lg border border-gray-200 preview-container">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                    <div id="videoInfo" class="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-0">Video recorded</div>
+                    <button onclick="clearVideo()" class="text-red-600 hover:text-red-800 text-xs sm:text-sm btn-touch">Remove</button>
+                </div>
+                <video id="videoPreviewPlayer" controls class="mt-2 w-full max-h-64 rounded"></video>
+            </div>
+            
             <form id="messageForm" class="space-y-2 sm:space-y-3">
                 <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 message-input-container">
                     <input type="text" id="messageInput" 
@@ -328,6 +337,11 @@
                             class="bg-orange-500 text-white px-3 py-2 sm:px-3 sm:py-2 rounded-md hover:bg-orange-600 transition duration-200 font-medium text-xs sm:text-sm btn-touch">
                         🎙️ voice message
                     </button>
+                    
+                    <button type="button" id="videoRecordButton" onclick="toggleVideoRecording()" 
+                            class="bg-purple-600 text-white px-3 py-2 sm:px-3 sm:py-2 rounded-md hover:bg-purple-700 transition duration-200 font-medium text-xs sm:text-sm btn-touch">
+                        🎥videoChat
+                    </button>
                 </div>
             </form>
         </footer>
@@ -339,11 +353,14 @@
         const MESSAGES_KEY = 'chatMessages';
         const CURRENT_USER_KEY = 'currentUser';
 
-        // Global variables for file and voice
+        // Global variables for file, voice, and video
         let selectedFile = null;
         let voiceBlob = null;
+        let videoBlob = null;
         let mediaRecorder = null;
+        let videoRecorder = null;
         let isRecording = false;
+        let isVideoRecording = false;
         let allMessages = [];
 
         // Initialize app
@@ -494,7 +511,7 @@
             const messageText = messageInput.value.trim();
             
             // Check if there's any content to send
-            if (!messageText && !selectedFile && !voiceBlob) return;
+            if (!messageText && !selectedFile && !voiceBlob && !videoBlob) return;
             
             const currentUser = JSON.parse(localStorage.getItem(CURRENT_USER_KEY));
             
@@ -545,6 +562,21 @@
                 return;
             }
             
+            // Handle video recording
+            if (videoBlob) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    newMessage.videoAttachment = {
+                        data: e.target.result,
+                        type: videoBlob.type
+                    };
+                    newMessage.messageType = 'video';
+                    saveAndDisplayMessage(messages, newMessage);
+                };
+                reader.readAsDataURL(videoBlob);
+                return;
+            }
+            
             // Text message
             saveAndDisplayMessage(messages, newMessage);
         }
@@ -557,6 +589,7 @@
             document.getElementById('messageInput').value = '';
             clearFile();
             clearVoice();
+            clearVideo();
             
             // Update all messages and display
             allMessages = messages;
@@ -644,6 +677,15 @@
                             <div class="flex flex-col sm:flex-row sm:items-center sm:space-x-2 voice-note">
                                 <span class="text-xl sm:text-2xl">🎙️</span>
                                 <audio src="${message.voiceNote.data}" controls class="flex-1 mt-2 sm:mt-0"></audio>
+                            </div>
+                        </div>
+                    `;
+                } else if (messageType === 'video' && message.videoAttachment) {
+                    messageBody = `
+                        <div class="mt-2 p-2 bg-gray-50 rounded border border-gray-200">
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:space-x-2">
+                                <span class="text-xl sm:text-2xl">🎥</span>
+                                <video src="${message.videoAttachment.data}" controls class="flex-1 mt-2 sm:mt-0 max-h-64 rounded"></video>
                             </div>
                         </div>
                     `;
@@ -830,6 +872,77 @@
             document.getElementById('voiceAudio').src = '';
             if (isRecording) {
                 stopRecording();
+            }
+        }
+
+        // Video recording functions
+        async function toggleVideoRecording() {
+            if (!isVideoRecording) {
+                startVideoRecording();
+            } else {
+                stopVideoRecording();
+            }
+        }
+
+        async function startVideoRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }, 
+                    audio: true 
+                });
+                videoRecorder = new MediaRecorder(stream);
+                const chunks = [];
+
+                videoRecorder.ondataavailable = (e) => chunks.push(e.data);
+                videoRecorder.onstop = () => {
+                    videoBlob = new Blob(chunks, { type: 'video/webm' });
+                    showVideoPreview();
+                };
+
+                videoRecorder.start();
+                isVideoRecording = true;
+                updateVideoRecordButton();
+            } catch (err) {
+                console.error('Error accessing camera:', err);
+                alert('Please allow camera and microphone access to record video messages.');
+            }
+        }
+
+        function stopVideoRecording() {
+            if (videoRecorder && isVideoRecording) {
+                videoRecorder.stop();
+                videoRecorder.stream.getTracks().forEach(track => track.stop());
+                isVideoRecording = false;
+                updateVideoRecordButton();
+            }
+        }
+
+        function updateVideoRecordButton() {
+            const button = document.getElementById('videoRecordButton');
+            if (isVideoRecording) {
+                button.textContent = '⏹️ Stop';
+                button.className = 'bg-red-600 text-white px-3 py-2 sm:px-3 sm:py-2 rounded-md hover:bg-red-700 transition duration-200 font-medium text-xs sm:text-sm btn-touch';
+            } else {
+                button.textContent = '🎥videoChat';
+                button.className = 'bg-purple-600 text-white px-3 py-2 sm:px-3 sm:py-2 rounded-md hover:bg-purple-700 transition duration-200 font-medium text-xs sm:text-sm btn-touch';
+            }
+        }
+
+        function showVideoPreview() {
+            document.getElementById('videoPreview').classList.remove('hidden');
+            const video = document.getElementById('videoPreviewPlayer');
+            video.src = URL.createObjectURL(videoBlob);
+        }
+
+        function clearVideo() {
+            videoBlob = null;
+            document.getElementById('videoPreview').classList.add('hidden');
+            document.getElementById('videoPreviewPlayer').src = '';
+            if (isVideoRecording) {
+                stopVideoRecording();
             }
         }
 
