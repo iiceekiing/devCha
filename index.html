@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-User Chat Platform</title>
+    <link href="./src/output.css" rel="stylesheet">
+    <style>
+        .chat-messages {
+            height: calc(100vh - 200px);
+            max-height: 600px;
+        }
+        @media (max-width: 640px) {
+            .chat-messages {
+                height: calc(100vh - 180px);
+                max-height: none;
+            }
+        }
+    </style>
+</head>
+<body class="bg-white min-h-screen">
+    <!-- Registration Page -->
+    <div id="registerPage" class="min-h-screen flex items-center justify-center px-4 py-8">
+        <div class="w-full max-w-md">
+            <div class="bg-white rounded-lg shadow-lg p-8 border border-gray-200">
+                <h2 class="text-2xl font-bold text-center mb-2 text-gray-800">Welcome to devCha</h2>
+                <p class="text-center text-gray-600 mb-6">Create your account to start chatting</p>
+                <form id="registerForm" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                        <input type="text" id="regFullName" required 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                        <input type="text" id="regUsername" required 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                        <input type="password" id="regPassword" required 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                    <button type="submit" 
+                            class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition duration-200 font-medium">
+                        Register
+                    </button>
+                </form>
+                <div class="mt-4 text-center">
+                    <p class="text-sm text-gray-600">
+                        Already have an account? 
+                        <button onclick="showLogin()" class="text-blue-600 hover:text-blue-800 font-medium">Login</button>
+                    </p>
+                </div>
+                <div id="regError" class="mt-4 text-red-600 text-sm text-center hidden"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Page -->
+    <div id="loginPage" class="min-h-screen flex items-center justify-center px-4 py-8 hidden">
+        <div class="w-full max-w-md">
+            <div class="bg-white rounded-lg shadow-lg p-8 border border-gray-200">
+                <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Login</h2>
+                <form id="loginForm" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                        <input type="text" id="loginUsername" required 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                        <input type="password" id="loginPassword" required 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                    </div>
+                    <button type="submit" 
+                            class="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition duration-200 font-medium">
+                        Login
+                    </button>
+                </form>
+                <div class="mt-4 text-center">
+                    <p class="text-sm text-gray-600">
+                        Don't have an account? 
+                        <button onclick="showRegister()" class="text-green-600 hover:text-green-800 font-medium">Register</button>
+                    </p>
+                </div>
+                <div id="loginError" class="mt-4 text-red-600 text-sm text-center hidden"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Page -->
+    <div id="chatPage" class="min-h-screen flex flex-col hidden">
+        <!-- Header -->
+        <header class="bg-white border-b border-gray-200 px-4 py-3 sm:px-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <h1 class="text-xl font-bold text-gray-800">Chat Room</h1>
+                    <span class="text-sm text-gray-600">Welcome, <span id="currentUser" class="font-medium"></span></span>
+                </div>
+                <button onclick="logout()" 
+                        class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition duration-200 font-medium text-sm">
+                    Logout
+                </button>
+            </div>
+        </header>
+
+        <!-- Chat Messages -->
+        <main class="flex-1 overflow-hidden px-4 py-4 sm:px-6">
+            <div id="chatMessages" class="chat-messages overflow-y-auto space-y-3 px-2">
+                <!-- Messages will be added here -->
+            </div>
+        </main>
+
+        <!-- Message Input -->
+        <footer class="bg-white border-t border-gray-200 px-4 py-4 sm:px-6">
+            <form id="messageForm" class="flex space-x-2">
+                <input type="text" id="messageInput" 
+                       placeholder="Type your message..." 
+                       class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <button type="submit" 
+                        class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition duration-200 font-medium">
+                    Send
+                </button>
+            </form>
+        </footer>
+    </div>
+
+    <script>
+        // Local Storage Keys
+        const USERS_KEY = 'chatUsers';
+        const MESSAGES_KEY = 'chatMessages';
+        const CURRENT_USER_KEY = 'currentUser';
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            checkExistingSession();
+            setupEventListeners();
+        });
+
+        function setupEventListeners() {
+            document.getElementById('registerForm').addEventListener('submit', handleRegister);
+            document.getElementById('loginForm').addEventListener('submit', handleLogin);
+            document.getElementById('messageForm').addEventListener('submit', handleMessage);
+        }
+
+        function checkExistingSession() {
+            const currentUser = localStorage.getItem(CURRENT_USER_KEY);
+            if (currentUser) {
+                showChatPage();
+                loadMessages();
+            } else {
+                showRegister();
+            }
+        }
+
+        function showRegister() {
+            document.getElementById('registerPage').classList.remove('hidden');
+            document.getElementById('loginPage').classList.add('hidden');
+            document.getElementById('chatPage').classList.add('hidden');
+        }
+
+        function showLogin() {
+            document.getElementById('registerPage').classList.add('hidden');
+            document.getElementById('loginPage').classList.remove('hidden');
+            document.getElementById('chatPage').classList.add('hidden');
+        }
+
+        function showChatPage() {
+            document.getElementById('registerPage').classList.add('hidden');
+            document.getElementById('loginPage').classList.add('hidden');
+            document.getElementById('chatPage').classList.remove('hidden');
+            
+            const currentUser = JSON.parse(localStorage.getItem(CURRENT_USER_KEY));
+            document.getElementById('currentUser').textContent = currentUser.username;
+        }
+
+        function handleRegister(e) {
+            e.preventDefault();
+            
+            const fullName = document.getElementById('regFullName').value.trim();
+            const username = document.getElementById('regUsername').value.trim();
+            const password = document.getElementById('regPassword').value;
+            
+            const errorDiv = document.getElementById('regError');
+            errorDiv.classList.add('hidden');
+            
+            // Get existing users
+            const users = JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
+            
+            // Check if username already exists
+            if (users.find(user => user.username === username)) {
+                errorDiv.textContent = 'Username already exists. Please choose another one.';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+            
+            // Add new user
+            const newUser = { fullName, username, password };
+            users.push(newUser);
+            localStorage.setItem(USERS_KEY, JSON.stringify(users));
+            
+            // Set current user session
+            localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(newUser));
+            
+            // Clear form
+            document.getElementById('registerForm').reset();
+            
+            // Show chat page
+            showChatPage();
+            loadMessages();
+            
+            // Add join message
+            addJoinMessage(newUser.username);
+        }
+
+        function handleLogin(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            
+            const errorDiv = document.getElementById('loginError');
+            errorDiv.classList.add('hidden');
+            
+            // Get users
+            const users = JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
+            
+            // Find user
+            const user = users.find(u => u.username === username && u.password === password);
+            
+            if (!user) {
+                errorDiv.textContent = 'Invalid username or password.';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+            
+            // Set current user session
+            localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+            
+            // Clear form
+            document.getElementById('loginForm').reset();
+            
+            // Show chat page
+            showChatPage();
+            loadMessages();
+        }
+
+        function logout() {
+            localStorage.removeItem(CURRENT_USER_KEY);
+            showLogin();
+        }
+
+        function addJoinMessage(username) {
+            const messages = JSON.parse(localStorage.getItem(MESSAGES_KEY) || '[]');
+            const joinMessage = {
+                id: Date.now(),
+                username: 'system',
+                fullName: 'System',
+                message: `${username} joined the room 📢🎉`,
+                timestamp: new Date().toISOString(),
+                isSystemMessage: true
+            };
+            
+            messages.push(joinMessage);
+            localStorage.setItem(MESSAGES_KEY, JSON.stringify(messages));
+            displayMessage(joinMessage);
+            scrollToBottom();
+        }
+
+        function handleMessage(e) {
+            e.preventDefault();
+            
+            const messageInput = document.getElementById('messageInput');
+            const messageText = messageInput.value.trim();
+            
+            if (!messageText) return;
+            
+            const currentUser = JSON.parse(localStorage.getItem(CURRENT_USER_KEY));
+            
+            // Get existing messages
+            const messages = JSON.parse(localStorage.getItem(MESSAGES_KEY) || '[]');
+            
+            // Add new message
+            const newMessage = {
+                id: Date.now(),
+                username: currentUser.username,
+                fullName: currentUser.fullName,
+                message: messageText,
+                timestamp: new Date().toISOString()
+            };
+            
+            messages.push(newMessage);
+            localStorage.setItem(MESSAGES_KEY, JSON.stringify(messages));
+            
+            // Clear input
+            messageInput.value = '';
+            
+            // Display message
+            displayMessage(newMessage);
+            
+            // Scroll to bottom
+            scrollToBottom();
+        }
+
+        function loadMessages() {
+            const messages = JSON.parse(localStorage.getItem(MESSAGES_KEY) || '[]');
+            const chatMessages = document.getElementById('chatMessages');
+            chatMessages.innerHTML = '';
+            
+            messages.forEach(message => {
+                displayMessage(message);
+            });
+            
+            scrollToBottom();
+        }
+
+        function displayMessage(message) {
+            const currentUser = JSON.parse(localStorage.getItem(CURRENT_USER_KEY));
+            const isCurrentUser = message.username === currentUser.username;
+            const isSystemMessage = message.isSystemMessage || false;
+            
+            const messageDiv = document.createElement('div');
+            
+            if (isSystemMessage) {
+                messageDiv.className = 'flex justify-center';
+                const messageContent = document.createElement('div');
+                messageContent.className = 'bg-orange-500 text-white px-3 py-1 rounded-full text-sm font-medium';
+                
+                const messageTime = new Date(message.timestamp).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                
+                messageContent.innerHTML = `${message.message} <span class="text-xs opacity-75">${messageTime}</span>`;
+                messageDiv.appendChild(messageContent);
+            } else {
+                messageDiv.className = `flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`;
+                
+                const messageContent = document.createElement('div');
+                messageContent.className = `max-w-xs sm:max-w-md px-4 py-2 rounded-lg ${
+                    isCurrentUser 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-gray-100 text-gray-800'
+                }`;
+                
+                const messageTime = new Date(message.timestamp).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                
+                messageContent.innerHTML = `
+                    <div class="font-medium text-sm ${isCurrentUser ? 'text-blue-100' : 'text-gray-600'}">
+                        ${message.username}:
+                    </div>
+                    <div class="mt-1">${message.message}</div>
+                    <div class="text-xs ${isCurrentUser ? 'text-blue-200' : 'text-gray-500'} mt-1">
+                        ${messageTime}
+                    </div>
+                `;
+                
+                messageDiv.appendChild(messageContent);
+            }
+            
+            document.getElementById('chatMessages').appendChild(messageDiv);
+        }
+
+        function scrollToBottom() {
+            const chatMessages = document.getElementById('chatMessages');
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+    </script>
+</body>
+</html>
