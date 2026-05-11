@@ -119,6 +119,19 @@
             </div>
         </header>
 
+        <!-- Search Bar -->
+        <div class="bg-white border-b border-gray-200 px-4 py-3 sm:px-6">
+            <div class="flex items-center space-x-2">
+                <input type="text" id="searchInput" 
+                       placeholder="Search messages or users..." 
+                       class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                <button onclick="clearSearch()" 
+                        class="bg-gray-500 text-white px-3 py-2 rounded-md hover:bg-gray-600 transition duration-200 font-medium text-sm">
+                    Clear
+                </button>
+            </div>
+        </div>
+
         <!-- Chat Messages -->
         <main class="flex-1 overflow-hidden px-4 py-4 sm:px-6">
             <div id="chatMessages" class="chat-messages overflow-y-auto space-y-3 px-2">
@@ -128,14 +141,47 @@
 
         <!-- Message Input -->
         <footer class="bg-white border-t border-gray-200 px-4 py-4 sm:px-6">
-            <form id="messageForm" class="flex space-x-2">
-                <input type="text" id="messageInput" 
-                       placeholder="Type your message..." 
-                       class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                <button type="submit" 
-                        class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition duration-200 font-medium">
-                    Send
-                </button>
+            <!-- File Upload Preview -->
+            <div id="filePreview" class="hidden mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <div class="flex items-center justify-between">
+                    <div id="fileInfo" class="text-sm text-gray-600"></div>
+                    <button onclick="clearFile()" class="text-red-600 hover:text-red-800 text-sm">Remove</button>
+                </div>
+            </div>
+            
+            <!-- Voice Recording Preview -->
+            <div id="voicePreview" class="hidden mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <div class="flex items-center justify-between">
+                    <div id="voiceInfo" class="text-sm text-gray-600">Voice note recorded</div>
+                    <button onclick="clearVoice()" class="text-red-600 hover:text-red-800 text-sm">Remove</button>
+                </div>
+                <audio id="voiceAudio" controls class="mt-2 w-full"></audio>
+            </div>
+            
+            <form id="messageForm" class="space-y-3">
+                <div class="flex space-x-2">
+                    <input type="text" id="messageInput" 
+                           placeholder="Type your message..." 
+                           class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <button type="submit" 
+                            class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition duration-200 font-medium">
+                        Send
+                    </button>
+                </div>
+                
+                <!-- Action Buttons -->
+                <div class="flex space-x-2">
+                    <input type="file" id="fileInput" accept="image/*,video/*,.pdf,.doc,.docx,.txt" class="hidden">
+                    <button type="button" onclick="document.getElementById('fileInput').click()" 
+                            class="bg-green-600 text-white px-3 py-2 rounded-md hover:bg-green-700 transition duration-200 font-medium text-sm">
+                        🗃️ Send File
+                    </button>
+                    
+                    <button type="button" id="recordButton" onclick="toggleRecording()" 
+                            class="bg-orange-500 text-white px-3 py-2 rounded-md hover:bg-orange-600 transition duration-200 font-medium text-sm">
+                        🎙️ voice message
+                    </button>
+                </div>
             </form>
         </footer>
     </div>
@@ -145,6 +191,13 @@
         const USERS_KEY = 'chatUsers';
         const MESSAGES_KEY = 'chatMessages';
         const CURRENT_USER_KEY = 'currentUser';
+
+        // Global variables for file and voice
+        let selectedFile = null;
+        let voiceBlob = null;
+        let mediaRecorder = null;
+        let isRecording = false;
+        let allMessages = [];
 
         // Initialize app
         document.addEventListener('DOMContentLoaded', function() {
@@ -156,6 +209,8 @@
             document.getElementById('registerForm').addEventListener('submit', handleRegister);
             document.getElementById('loginForm').addEventListener('submit', handleLogin);
             document.getElementById('messageForm').addEventListener('submit', handleMessage);
+            document.getElementById('fileInput').addEventListener('change', handleFileSelect);
+            document.getElementById('searchInput').addEventListener('input', handleSearch);
         }
 
         function checkExistingSession() {
@@ -291,37 +346,83 @@
             const messageInput = document.getElementById('messageInput');
             const messageText = messageInput.value.trim();
             
-            if (!messageText) return;
+            // Check if there's any content to send
+            if (!messageText && !selectedFile && !voiceBlob) return;
             
             const currentUser = JSON.parse(localStorage.getItem(CURRENT_USER_KEY));
             
             // Get existing messages
             const messages = JSON.parse(localStorage.getItem(MESSAGES_KEY) || '[]');
             
-            // Add new message
+            // Create message object
             const newMessage = {
                 id: Date.now(),
                 username: currentUser.username,
                 fullName: currentUser.fullName,
                 message: messageText,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                messageType: 'text',
+                fileAttachment: null,
+                voiceNote: null
             };
             
+            // Handle file attachment
+            if (selectedFile) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    newMessage.fileAttachment = {
+                        name: selectedFile.name,
+                        type: selectedFile.type,
+                        size: selectedFile.size,
+                        data: e.target.result
+                    };
+                    newMessage.messageType = 'file';
+                    saveAndDisplayMessage(messages, newMessage);
+                };
+                reader.readAsDataURL(selectedFile);
+                return;
+            }
+            
+            // Handle voice note
+            if (voiceBlob) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    newMessage.voiceNote = {
+                        data: e.target.result,
+                        type: voiceBlob.type
+                    };
+                    newMessage.messageType = 'voice';
+                    saveAndDisplayMessage(messages, newMessage);
+                };
+                reader.readAsDataURL(voiceBlob);
+                return;
+            }
+            
+            // Text message
+            saveAndDisplayMessage(messages, newMessage);
+        }
+
+        function saveAndDisplayMessage(messages, newMessage) {
             messages.push(newMessage);
             localStorage.setItem(MESSAGES_KEY, JSON.stringify(messages));
             
-            // Clear input
-            messageInput.value = '';
+            // Clear inputs
+            document.getElementById('messageInput').value = '';
+            clearFile();
+            clearVoice();
             
-            // Display message
+            // Update all messages and display
+            allMessages = messages;
             displayMessage(newMessage);
-            
-            // Scroll to bottom
             scrollToBottom();
         }
 
         function loadMessages() {
-            const messages = JSON.parse(localStorage.getItem(MESSAGES_KEY) || '[]');
+            allMessages = JSON.parse(localStorage.getItem(MESSAGES_KEY) || '[]');
+            displayFilteredMessages(allMessages);
+        }
+
+        function displayFilteredMessages(messages) {
             const chatMessages = document.getElementById('chatMessages');
             chatMessages.innerHTML = '';
             
@@ -366,6 +467,43 @@
                     minute: '2-digit'
                 });
                 
+                // Build message content based on type
+                let messageBody = '';
+                const messageType = message.messageType || 'text';
+                
+                if (messageType === 'file' && message.fileAttachment) {
+                    messageBody = `
+                        <div class="mt-2 p-2 bg-gray-50 rounded border border-gray-200">
+                            <div class="flex items-center space-x-2">
+                                <span class="text-2xl">�️</span>
+                                <div class="flex-1">
+                                    <div class="text-sm font-medium">${message.fileAttachment.name}</div>
+                                    <div class="text-xs text-gray-500">${formatFileSize(message.fileAttachment.size)}</div>
+                                </div>
+                                <button onclick="downloadFile('${message.fileAttachment.data}', '${message.fileAttachment.name}')" 
+                                        class="bg-blue-500 text-white px-2 py-1 rounded text-xs hover:bg-blue-600">
+                                    Download
+                                </button>
+                            </div>
+                            ${message.fileAttachment.type.startsWith('image/') ? 
+                                `<img src="${message.fileAttachment.data}" class="mt-2 max-w-full rounded" alt="Image">` : ''}
+                            ${message.fileAttachment.type.startsWith('video/') ? 
+                                `<video src="${message.fileAttachment.data}" controls class="mt-2 max-w-full rounded"></video>` : ''}
+                        </div>
+                    `;
+                } else if (messageType === 'voice' && message.voiceNote) {
+                    messageBody = `
+                        <div class="mt-2 p-2 bg-gray-50 rounded border border-gray-200">
+                            <div class="flex items-center space-x-2">
+                                <span class="text-2xl">🎙️</span>
+                                <audio src="${message.voiceNote.data}" controls class="flex-1"></audio>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    messageBody = `<div class="mt-1">${message.message}</div>`;
+                }
+                
                 messageContent.innerHTML = `
                     <div class="flex justify-between items-start">
                         <div class="font-medium text-sm ${isCurrentUser ? 'text-blue-100' : 'text-gray-600'}">
@@ -378,7 +516,7 @@
                             </button>
                         ` : ''}
                     </div>
-                    <div class="mt-1">${message.message}</div>
+                    ${messageBody}
                     <div class="text-xs ${isCurrentUser ? 'text-blue-200' : 'text-gray-500'} mt-1">
                         ${messageTime}
                     </div>
@@ -450,6 +588,131 @@
             if (!membersList.classList.contains('hidden')) {
                 loadMembersList();
             }
+        }
+
+        // File handling functions
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                selectedFile = file;
+                document.getElementById('filePreview').classList.remove('hidden');
+                document.getElementById('fileInfo').textContent = `${file.name} (${formatFileSize(file.size)})`;
+            }
+        }
+
+        function clearFile() {
+            selectedFile = null;
+            document.getElementById('filePreview').classList.add('hidden');
+            document.getElementById('fileInput').value = '';
+        }
+
+        function downloadFile(data, filename) {
+            const link = document.createElement('a');
+            link.href = data;
+            link.download = filename;
+            link.click();
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Voice recording functions
+        async function toggleRecording() {
+            if (!isRecording) {
+                startRecording();
+            } else {
+                stopRecording();
+            }
+        }
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                const chunks = [];
+
+                mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+                mediaRecorder.onstop = () => {
+                    voiceBlob = new Blob(chunks, { type: 'audio/webm' });
+                    showVoicePreview();
+                };
+
+                mediaRecorder.start();
+                isRecording = true;
+                updateRecordButton();
+            } catch (err) {
+                console.error('Error accessing microphone:', err);
+                alert('Please allow microphone access to record voice notes.');
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                isRecording = false;
+                updateRecordButton();
+            }
+        }
+
+        function updateRecordButton() {
+            const button = document.getElementById('recordButton');
+            if (isRecording) {
+                button.textContent = '⏹️ Stop';
+                button.className = 'bg-red-600 text-white px-3 py-2 rounded-md hover:bg-red-700 transition duration-200 font-medium text-sm';
+            } else {
+                button.textContent = '🎙️ Record';
+                button.className = 'bg-orange-500 text-white px-3 py-2 rounded-md hover:bg-orange-600 transition duration-200 font-medium text-sm';
+            }
+        }
+
+        function showVoicePreview() {
+            document.getElementById('voicePreview').classList.remove('hidden');
+            const audio = document.getElementById('voiceAudio');
+            audio.src = URL.createObjectURL(voiceBlob);
+        }
+
+        function clearVoice() {
+            voiceBlob = null;
+            document.getElementById('voicePreview').classList.add('hidden');
+            document.getElementById('voiceAudio').src = '';
+            if (isRecording) {
+                stopRecording();
+            }
+        }
+
+        // Search functions
+        function handleSearch(e) {
+            const searchTerm = e.target.value.toLowerCase().trim();
+            
+            if (!searchTerm) {
+                displayFilteredMessages(allMessages);
+                return;
+            }
+
+            const filteredMessages = allMessages.filter(message => {
+                if (message.isSystemMessage) return false;
+                
+                const matchesUsername = message.username.toLowerCase().includes(searchTerm);
+                const matchesFullName = message.fullName.toLowerCase().includes(searchTerm);
+                const matchesMessage = message.message && message.message.toLowerCase().includes(searchTerm);
+                const matchesFileName = message.fileAttachment && 
+                    message.fileAttachment.name.toLowerCase().includes(searchTerm);
+                
+                return matchesUsername || matchesFullName || matchesMessage || matchesFileName;
+            });
+
+            displayFilteredMessages(filteredMessages);
+        }
+
+        function clearSearch() {
+            document.getElementById('searchInput').value = '';
+            displayFilteredMessages(allMessages);
         }
 
         function scrollToBottom() {
